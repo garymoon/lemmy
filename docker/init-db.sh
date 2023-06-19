@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -euo pipefail
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set pass="$POSTGRES_UNPRIVILEGED_PASSWORD" <<-EOF
+    CREATE USER $POSTGRES_UNPRIVILEGED_USER WITH SUPERUSER ENCRYPTED PASSWORD :'pass';
+    CREATE DATABASE $POSTGRES_UNPRIVILEGED_DATABASE WITH OWNER $POSTGRES_UNPRIVILEGED_USER TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';
+EOF
+
+# FIXME: Why do migrations require a superuser? (it's fixed in a recent commit, can remove soon)

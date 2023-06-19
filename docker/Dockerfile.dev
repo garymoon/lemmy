@@ -1,0 +1,11 @@
+FROM rust:1.67.0
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN cargo install cargo-watch
+
+CMD ["bash", "-c", "cargo watch -x check -x run"]

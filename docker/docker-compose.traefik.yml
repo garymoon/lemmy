@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    restart: unless-stopped
+    network_mode: host
+    command:
+      #https://doc.traefik.io/traefik/reference/static-configuration/cli/
+      - "--log.level=INFO" # DEBUG, INFO, WARN, *ERROR*, FATAL, PANIC
+      #- "--log.format=json"
+      #- "--accesslog=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls.certresolver=default"
+      - "--entrypoints.websecure.http.tls.domains[0].main=${LEMMY_UI_LEMMY_EXTERNAL_HOST}"
+      #- "--entrypoints.websecure.http.tls.domains[0].sans=a.${LEMMY_UI_LEMMY_EXTERNAL_HOST}"
+      #- "--certificatesresolvers.default.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.default.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.default.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.default.acme.tlschallenge=true"
+    volumes:
+      - "./traefik-letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.traefik.loadbalancer.server.port=443"
+      - "traefik.http.middlewares.noindex.headers.customresponseheaders.X-Robots-Tag=noindex,nofollow"
+      - "traefik.http.middlewares.tauth.basicauth.users=${TRAEFIK_BASIC_AUTH}"
+    depends_on: [proxy]
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    networks:
+      - lemmyinternal
+      - lemmyexternalproxy
+    environment:
+      - ADMINER_PLUGINS=dump-zip dump-date edit-calendar edit-textarea enum-option enum-types file-upload json-column slugify sql-log tables-filter tinymce
+      - POSTGRES_USER=${POSTGRES_SUPERUSER_USER}
+      - POSTGRES_DATABASE=${POSTGRES_UNPRIVILEGED_DATABASE}
+      - POSTGRES_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
+    volumes:
+      - ./login.php:/var/www/html/plugins-enabled/login.php
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.rule=Host(`${LEMMY_UI_LEMMY_EXTERNAL_HOST}`) && PathPrefix(`/_adminer`)"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+      - "traefik.http.routers.adminer.entrypoints=websecure"
+      - "traefik.http.routers.adminer.tls=true"
+      - "traefik.http.routers.adminer.middlewares=noindex,tauth"
+      - "traefik.http.routers.adminer.tls.certresolver=default"
+    restart: unless-stopped
+
+  whoami:
+    image: traefik/whoami
+    container_name: whoami
+    networks:
+      - lemmyexternalproxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`${LEMMY_UI_LEMMY_EXTERNAL_HOST}`) && PathPrefix(`/_whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls=true"
+      - "traefik.http.routers.whoami.middlewares=noindex,tauth"
+      - "traefik.http.routers.whoami.tls.certresolver=default"
+
+  proxy:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.proxy.rule=Host(`${LEMMY_UI_LEMMY_EXTERNAL_HOST}`) && PathPrefix(`/`)"
+      - "traefik.http.services.proxy.loadbalancer.server.port=1236"
+      - "traefik.http.routers.proxy.entrypoints=websecure"
+      - "traefik.http.routers.proxy.tls=true"
+      - "traefik.http.routers.proxy.tls.certresolver=default"

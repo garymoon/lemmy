@@ -26,3 +26,7 @@ pictrs/
 
 # The generated typescript bindings
 bindings
+
+# Secrets
+.env
+lemmy.hjson

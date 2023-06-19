@@ -1,0 +1,28 @@
+---
+
+services:
+
+  lemmy:
+    image: dessalines/lemmy:0.17.4
+    logging:
+      driver: journald
+
+
+  lemmy-ui:
+    image: dessalines/lemmy-ui:0.17.4
+    logging:
+      driver: journald
+
+  postgres:
+    logging:
+      driver: journald
+
+  pictrs:
+    logging:
+      driver: journald
+
+  proxy:
+    volumes:
+      - ./nginx-prod.conf:/etc/nginx/templates/prod.d/lemmy-prod.conf.template:ro,Z
+    logging:
+      driver: journald #FIXME: This will be too noisy

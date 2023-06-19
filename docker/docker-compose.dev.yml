@@ -1,0 +1,54 @@
+---
+
+services:
+  lemmy:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ../:/app
+
+  lemmy-ui:
+    # assuming lemmy-ui is cloned besides lemmy directory
+    build:
+      context: ../../lemmy-ui
+      # FIXME: Just to avoid making a single-file change in lemmy-ui
+      dockerfile_inline: |
+        FROM node
+
+        RUN git config --global --add safe.directory /app
+
+        EXPOSE 1234
+        WORKDIR /app
+        CMD ["bash", "-c", "yarn install && yarn start"]
+    networks:
+      - lemmyexternalproxy  # for yarn
+    volumes:
+      - ../../lemmy-ui:/app
+    environment:
+      - LEMMY_UI_DEBUG=true
+
+  pictrs:
+    environment:
+      - RUST_LOG=debug
+    depends_on: [pictrs-init]
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    networks:
+      - lemmyinternal
+      - lemmyexternalproxy
+    environment:
+      - MP_WEBROOT=/_mailpit
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+      - "traefik.http.routers.mailpit.rule=Host(`${LEMMY_UI_LEMMY_EXTERNAL_HOST}`) && PathPrefix(`/_mailpit`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls=true"
+      - "traefik.http.routers.mailpit.middlewares=noindex,tauth"
+      - "traefik.http.routers.mailpit.tls.certresolver=default"
+    restart: unless-stopped
